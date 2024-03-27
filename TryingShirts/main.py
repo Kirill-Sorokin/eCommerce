@@ -1,16 +1,18 @@
-import cvzone, cv2, os
+import cv2
+import os
 from cvzone.PoseModule import PoseDetector
 
-# Setup the camera capture. Using '0' to select the default webcam.
+# Initialize camera capture; '0' indicates the default camera (typically the built-in webcam)
 capture = cv2.VideoCapture(0)
 
 # Initialize the pose detector from cvzone.
 detector = PoseDetector()
 
 # Path to the folder containing the shirt images for virtual try-on.
-shirtFolderPath = "/workspaces/eCommerce-Trying-on-Shirts/TryingShirts/shirts"
+# Updated to use absolute path from the project root
+shirtFolderPath = "shirts"  
 # Obtain a list of shirt image filenames from the directory.
-listShirts = os.listdir(shirtFolderPath)
+listShirts = [file for file in os.listdir(shirtFolderPath) if file.lower().endswith(('.png', '.jpg', '.jpeg'))]
 
 # Constants for shirt resizing based on pose detection.
 fixedRatio = 262 / 190  # Ratio based on shirt image and specific pose landmarks.
@@ -18,7 +20,8 @@ shirtRatioHeightWidth = 581 / 440  # Height-to-width ratio of the shirt image.
 imageNumber = 0  # Index to keep track of the currently selected shirt.
 
 # Load buttons for UI interaction.
-imgButtonRight = cv2.imread("Resources/button.png", cv2.IMREAD_UNCHANGED)
+# Updated to use the absolute path from the project root
+imgButtonRight = cv2.imread("TryingShirts/button/button.png", cv2.IMREAD_UNCHANGED)
 imgButtonLeft = cv2.flip(imgButtonRight, 1)
 
 # Counters for button press simulation based on pose gestures.
@@ -31,29 +34,29 @@ while True:
     if not success:
         print("Failed to capture image")
         break
-    
+
     # Apply pose detection on the captured frame.
-    img = detector.findPose(img)
-    lmList, bboxInfo = detector.findPosition(img, bboxWithHands=False)
+    img = detector.findPose(img, draw=False)  # Added draw=False to prevent drawing the skeleton
+    lmList, bboxInfo = detector.findPosition(img, draw=False)  # Added draw=False for the same reason
 
     if bboxInfo and lmList:
         # Calculate the new shirt width based on the distance between landmarks 11 and 12.
-        lm11 = lmList[11][1:3]
-        lm12 = lmList[12][1:3]
-        widthOfShirt = int(abs(lm11[0] - lm12[0]) * fixedRatio)
+        lm11 = lmList[11]
+        lm12 = lmList[12]
+        widthOfShirt = int(abs(lm11[1] - lm12[1]) * fixedRatio)
 
         # Dynamically resize the shirt image based on the calculated width and predetermined ratios.
         try:
-            imgShirt = cv2.imread(os.path.join(shirtFolderPath, listShirts[imageNumber]), cv2.IMREAD_UNCHANGED)
+            imgShirt = cv2.imread(f"{shirtFolderPath}/{listShirts[imageNumber]}", cv2.IMREAD_UNCHANGED)
             imgShirt = cv2.resize(imgShirt, (widthOfShirt, int(widthOfShirt * shirtRatioHeightWidth)))
-            offset = int(44 * (abs(lm11[0] - lm12[0]) / 190)), int(48 * (abs(lm11[0] - lm12[0]) / 190))
+            offset = int(44 * (abs(lm11[1] - lm12[1]) / 190)), int(48 * (abs(lm11[1] - lm12[1]) / 190))
 
             # Overlay the resized shirt image onto the user's frame.
-            img = cvzone.overlayPNG(img, imgShirt, (lm12[0] - offset[0], lm12[1] - offset[1]))
+            img = cvzone.overlayPNG(img, imgShirt, (lm12[1] - offset[0], lm12[2] - offset[1]))
         except Exception as e:
             print(f"Error overlaying shirt: {e}")
 
-        # Overlay navigation buttons onto the frame.
+                # Overlay navigation buttons onto the frame.
         img = cvzone.overlayPNG(img, imgButtonRight, (1074, 293))
         img = cvzone.overlayPNG(img, imgButtonLeft, (72, 293))
 
@@ -87,3 +90,4 @@ while True:
 # Release the camera and destroy all OpenCV windows.
 capture.release()
 cv2.destroyAllWindows()
+
